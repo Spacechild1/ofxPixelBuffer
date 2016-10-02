@@ -306,7 +306,7 @@ int ofxPixelBuffer::loadMultiImage(const string filePath, int numFiles, int star
 
 
 bool ofxPixelBuffer::loadMovie(const string filePath, int numFrames, int frameOnset, int bufferOnset){
-    if (!myLoader){          // loader has been set
+    if (!myLoader){
         cout << "set movie loader first!\n";
         return false;
     }
@@ -370,11 +370,13 @@ bool ofxPixelBuffer::loadMovie(const string filePath, int numFrames, int frameOn
         else {
             if (!bAllocated){
                 cout << "buffer not allocated!\n";
+                myLoader->close();
                 return false;
             }
 
             if ((width != myWidth)||(height != myHeight)||(channels != myChannels)){
                 cout << "wrong dimension!";
+                myLoader->close();
                 return false;
             }
 
@@ -403,10 +405,12 @@ bool ofxPixelBuffer::loadMovie(const string filePath, int numFrames, int frameOn
             }
         }
         // movie was successfully written into the buffer
+        myLoader->close();
         return true;
     } else {
         // couldn't load movie
         cout << "couldn't load movie!\n";
+        myLoader->close();
         return false;
     }
 }

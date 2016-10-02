@@ -117,7 +117,7 @@ class ofxPixelBufferPlayer {
     protected:
         ofxPixelBuffer* myBufferPtr;
         const ofPixels* lerpPixelsPtr; // pointer to internal lerpPixels of ofxPixelBuffer
-        ofPixels dummy;
+        ofPixels dummy; // dummy ofPixels to return if something goes wrong
 
         int64_t oldTime;
         bool bPlay;
