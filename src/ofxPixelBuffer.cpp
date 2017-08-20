@@ -37,7 +37,6 @@ ofxPixelBuffer::ofxPixelBuffer(const ofxPixelBuffer& mom){
             mySize = mom.mySize;
             myFrameSize = mom.myFrameSize;
             myBuffer = mom.myBuffer;
-            lerpPixels = mom.lerpPixels;
             bAllocated = true;
         } else {
         cout << "couldn't copy: mom not allocated!\n";
@@ -56,7 +55,6 @@ ofxPixelBuffer& ofxPixelBuffer::operator= (const ofxPixelBuffer& mom){
             mySize = mom.mySize;
             myFrameSize = mom.myFrameSize;
             myBuffer = mom.myBuffer;
-            lerpPixels = mom.lerpPixels;
             bAllocated = true;
         } else {
             cout << "couldn't copy: mom not allocated!\n";
@@ -73,7 +71,6 @@ ofxPixelBuffer::ofxPixelBuffer(ofxPixelBuffer&& mom){
         mySize = mom.mySize;
         myFrameSize = mom.myFrameSize;
         myBuffer = move(mom.myBuffer);
-        lerpPixels = move(mom.lerpPixels);
         bAllocated = true;
     } else {
         cout << "couldn't move: mom not allocated!\n";
@@ -88,7 +85,6 @@ ofxPixelBuffer& ofxPixelBuffer::operator= (ofxPixelBuffer&& mom){
         mySize = mom.mySize;
         myFrameSize = mom.myFrameSize;
         myBuffer = move(mom.myBuffer);
-        lerpPixels = move(mom.lerpPixels);
         bAllocated = true;
     } else {
         cout << "couldn't move: mom not allocated!\n";
@@ -104,13 +100,11 @@ void ofxPixelBuffer::allocate(int width, int height, int channels, int frames){
     }
 
     if (width*height*channels > 0 && frames > 0) {
-        lerpPixels.allocate(width, height, channels);
         myWidth = width;
         myHeight = height;
         myChannels = channels;
         myFrameSize = width * height * channels;
         myBuffer.clear();
-        lerpPixels.allocate(width, height, channels);
         bAllocated = true;
 		// resize buffer and allocate ofPixels
         resize(frames);
@@ -156,7 +150,6 @@ void ofxPixelBuffer::clearBuffer(){
     myFrameSize = 0;
     mySize = 0;
     bAllocated = false;
-    lerpPixels.clear();
 }
 
 void ofxPixelBuffer::clearPixels(){
@@ -243,7 +236,6 @@ int ofxPixelBuffer::loadMultiImage(const string filePath, int numFiles, int star
                     myHeight = height;
                     myChannels = channels;
                     myFrameSize = width*height*channels;
-                    lerpPixels.allocate(width, height, channels);
                     bAllocated = true;
                     myBuffer.push_back(image.getPixels());
                     k++;
@@ -462,23 +454,17 @@ const ofPixels& ofxPixelBuffer::operator[] (int index) const {
 }
 
 
-const ofPixels& ofxPixelBuffer::readLinear (float index) const {
+ofPixels ofxPixelBuffer::readLinear (float index) const {
     if (mySize > 0){
         index = max(0.f, min(mySize-0.0001f, index));
         int intPart = static_cast<int>(index);
         float floatPart = index-intPart;
 
         const unsigned char* pix1 = myBuffer[intPart].getData();
-        const unsigned char* pix2;
-
-        if (intPart == (mySize-1)){
-            pix2 = myBuffer[0].getData();
-        }
-        else {
-            pix2 = myBuffer[intPart+1].getData();
-        }
-
-        unsigned char* result = lerpPixels.getData();
+        const unsigned char* pix2 = myBuffer[(intPart+1)%mySize].getData();
+        ofPixels temp;
+        temp.allocate(myWidth, myHeight, myChannels);
+        unsigned char* result = temp.getData();
 
         float a = 1 - floatPart;
         float b = floatPart;
@@ -487,11 +473,11 @@ const ofPixels& ofxPixelBuffer::readLinear (float index) const {
             result[i] = static_cast<unsigned char>(pix1[i] * a + pix2[i] * b);
         }
 
-        return lerpPixels;
+        return temp;
     }
     else {
         cout << "buffer is empty!\n";
-        return dummy;
+        return ofPixels(); // return empty pixels
     }
 }
 
@@ -882,7 +868,6 @@ ofPixels ofxPixelRingBuffer::readLinear(float index) const{
 
 ofxPixelBufferPlayer::ofxPixelBufferPlayer() {
     myBufferPtr = nullptr;
-    lerpPixelsPtr = nullptr;
     bPlay = false;
     bLoop = false;
     bLoopNew = false;
@@ -904,7 +889,6 @@ ofxPixelBufferPlayer::ofxPixelBufferPlayer() {
 
 ofxPixelBufferPlayer::ofxPixelBufferPlayer(ofxPixelBuffer& buffer) {
     myBufferPtr = &buffer;
-    lerpPixelsPtr = nullptr;
     bPlay = false;
     bLoop = false;
     bLoopNew = false;
@@ -1031,9 +1015,8 @@ void ofxPixelBufferPlayer::update(){
         myPosition = max(0.f, min(length, myPosition));
         // update lerpPixels if linear interpolation is turned on
         if (bLerp){
-            // ofxPixelBuffer::readLinear() calculates the interpolated pixels and returns a const reference
-            // to its internal lerpPixels member - which we want to keep a pointer to.
-            lerpPixelsPtr = &(myBufferPtr->readLinear(myPosition));
+            // ofxPixelBuffer::readLinear() calculates the interpolated pixels
+            lerpPixels = myBufferPtr->readLinear(myPosition);
         }
     } else {
         // only check for boundaries:
@@ -1050,8 +1033,8 @@ const ofPixels& ofxPixelBufferPlayer::getPixels() const {
         return dummy;
     }
 
-    if (bLerp && lerpPixelsPtr){
-        return *lerpPixelsPtr;
+    if (bLerp && lerpPixels.isAllocated()){
+        return lerpPixels;
     } else {
         return myBufferPtr->read(static_cast<int>(myPosition + 0.5f)); // round to frame
     }
@@ -1104,7 +1087,7 @@ void ofxPixelBufferPlayer::resetLoop(){
         if (!bPlay && bLerp){
             // here we should check
             myPosition = max(0.f, min(length, myPosition));
-            lerpPixelsPtr = &(myBufferPtr->readLinear(myPosition));
+            lerpPixels = myBufferPtr->readLinear(myPosition);
         }
     }
 
@@ -1163,7 +1146,7 @@ void ofxPixelBufferPlayer::setPosition(float frames){
         float length = myBufferPtr->size()-1.f;
         myPosition = max(0.f, min(length, frames));
         // update lerpPixels
-        lerpPixelsPtr = &(myBufferPtr->readLinear(myPosition));
+        lerpPixels = myBufferPtr->readLinear(myPosition);
     } else {
         // checking is not necessary
         myPosition = frames;

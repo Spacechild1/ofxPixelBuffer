@@ -11,10 +11,9 @@ class ofxPixelBuffer {
         int myWidth, myHeight, myChannels, mySize;
         uint32_t myFrameSize;
         bool bAllocated;
-        mutable ofPixels lerpPixels;
-        ofPixels dummy;
         ofBaseVideoPlayer* myLoader;
         bool bThreaded;
+        ofPixels dummy;
     public:
         // constructors
         ofxPixelBuffer();
@@ -43,7 +42,7 @@ class ofxPixelBuffer {
         const ofPixels& read (int index) const;
         const ofPixels& operator[] (int index) const;
         // read with linear interpolation. returns new ofPixels object.
-        const ofPixels& readLinear (float index) const;
+        ofPixels readLinear (float index) const;
 
         void pushFront(const ofPixels& myPixels);
         void pushFront(ofPixels&& myPixels);
@@ -116,7 +115,7 @@ class ofxPixelRingBuffer {
 class ofxPixelBufferPlayer {
     protected:
         ofxPixelBuffer* myBufferPtr;
-        const ofPixels* lerpPixelsPtr; // pointer to internal lerpPixels of ofxPixelBuffer
+        ofPixels lerpPixels; // pointer to internal lerpPixels of ofxPixelBuffer
         ofPixels dummy; // dummy ofPixels to return if something goes wrong
 
         int64_t oldTime;
